@@ -41,3 +41,4 @@ chat_logs.json
 *.bak
 *.swp
 *.tmp
+config.py

@@ -1,24 +1,40 @@
-from local_llm import LocalLLM
-from translator import TranslatorWrapper
+import ollama
 
-# Ініціалізація
-llm = LocalLLM(model_path="/Users/kola/.llama/hf_model_1B/hf_model_1B-1.2B-q8_0.gguf")
-translator = TranslatorWrapper()
+# Configuration
+OLLAMA_MODEL = "gemma3:4b-it-qat"
 
-print("💬 Введіть питання українською (або 'exit' для виходу):\n")
-while True:
-    user_input = input("🧠 Ти: ")
-    if user_input.lower() in {"exit", "quit"}:
-        print("👋 Бувай!")
-        break
+# Function to query Ollama
+def ask_ollama(prompt: str) -> str:
+    """Send request to Ollama and get response."""
+    try:
+        response = ollama.chat(
+            model=OLLAMA_MODEL,
+            messages=[
+                {"role": "system", "content": "Ти корисний асистент. Відповідай українською мовою стисло та зрозуміло."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return response['message']['content']
+    except Exception as e:
+        return f"❌ Помилка: {e}"
 
-    # Переклад вхідного запиту на англійську
-    question_en = translator.to_en(user_input)
+def main():
+    print(f"💬 CLI тестування Ollama ({OLLAMA_MODEL})")
+    print("Введіть питання українською (або 'exit' для виходу):\n")
+    
+    while True:
+        user_input = input("🧠 Ти: ")
+        
+        if user_input.lower() in {"exit", "quit", "вихід"}:
+            print("👋 Бувай!")
+            break
+        
+        if not user_input.strip():
+            continue
+        
+        # Get response from Ollama (no translation needed!)
+        answer = ask_ollama(user_input)
+        print(f"🤖 Бот: {answer}\n")
 
-    # Запит до LLM
-    answer_en = llm.ask(question_en)
-
-    # Переклад відповіді назад на українську
-    answer_uk = translator.to_uk(answer_en)
-
-    print(f"🤖 Бот: {answer_uk}\n")
+if __name__ == "__main__":
+    main()
