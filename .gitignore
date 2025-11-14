@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.pyc
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies (cloned repos)
+llama.cpp/
+transformers/
+
+# Secrets & Config
+*.env
+config.ini
+secrets.json
+
+# Model files (often huge)
+*.bin
+*.gguf
+*.safetensors
+*.pth
+*.pt
+
+# Logs and data
+*.log
+chat_logs.json
+
+# Other
+*.bak
+*.swp
+*.tmp
