@@ -1,23 +1,23 @@
-# PticAI - Telegram Bot with Ollama
+# PticAI - Telegram Bot with Ollama (Gemma 4 Edition)
 
-Ukrainian language Telegram chatbot powered by Ollama and Gemma 3 4B model.
+Ukrainian language Telegram chatbot powered by Ollama and the latest Gemma 4 E2B model. This project is optimized for local execution on hardware with limited VRAM (like Mac or edge devices) while maintaining high-quality conversational AI capabilities.
 
-## Features
+## 🌟 Features
 
-- 🇺🇦 Native Ukrainian language support
-- 🤖 AI-powered responses using Gemma 3 4B (QAT)
-- 💬 Conversation memory for context-aware responses
-- 📖 Story generation mode for creative requests
-- 📊 Poll creation functionality
-- ⚡ Fast local inference via Ollama
+- 🇺🇦 **Native Ukrainian Support** — No translation layers; the model reasons and responds natively in Ukrainian.
+- 🧠 **Gemma 4 E2B (4-bit)** — Leveraging the latest Google's edge-optimized model for superior reasoning.
+- 💬 **Smart Context Memory** — Maintains multi-turn conversations using a structured history system.
+- 🎭 **Adaptive System Prompts** — Automatically switches between "Storyteller" and "General Assistant" modes based on user intent.
+- 📊 **Poll Creation** — Build Telegram polls directly via bot commands using regex parsing.
+- ⚡ **Performance Optimized** — Implements `keep-alive` to eliminate cold-start delays and regex-based "thinking" token filtering.
 
-## Requirements
+## 🛠 Requirements
 
-- Python 3.8+
-- Ollama installed and running
-- Telegram Bot Token
+- **Python 3.8+**
+- **Ollama** (installed and running)
+- **Telegram Bot Token** (from @BotFather)
 
-## Installation
+## 🚀 Installation
 
 1. **Clone the repository:**
    ```bash
@@ -25,97 +25,85 @@ Ukrainian language Telegram chatbot powered by Ollama and Gemma 3 4B model.
    cd PticAI
    ```
 
-2. **Create virtual environment:**
+2. **Create and activate virtual environment:**
+
    ```bash
    python -m venv .venv
    source .venv/bin/activate  # On Mac/Linux
+   # or .venv\Scripts\activate on Windows
    ```
 
 3. **Install dependencies:**
+
    ```bash
-   pip install python-telegram-bot ollama
+   pip install python-telegram-bot ollama psutil
    ```
 
-4. **Install and setup Ollama:**
-   ```bash
-   # Install Ollama (if not already installed)
-   # Visit: https://ollama.com
+4. **Setup Ollama & Model:**
 
-   # Pull the model
-   ollama pull gemma3:4b-it-qat
+   ```bash
+   # Pull the latest Gemma 4 model optimized for edge devices
+   ollama pull gemma4:e2b-it-q4_K_M
    ```
 
 5. **Configure bot token:**
-   - Create `config.py` with your Telegram bot token:
+
+   Create a `config.py` file in the root directory:
+
    ```python
    TOKEN = "your_telegram_bot_token_here"
    ```
 
-## Usage
+## 📋 Usage
 
 ### Run the Telegram Bot
+
 ```bash
 python bot.py
 ```
 
-### Test via CLI
+### Test via CLI (Sandbox mode)
+
 ```bash
 python main.py
 ```
 
 ### Telegram Commands
-- `/start` - Welcome message
-- `/ptic <your message>` - Ask bot a question or request a story
-- `/createpoll <question> (option1, option2) [anon] [multi]` - Create a poll
 
-## Project Structure
+- `/start` — Initial greeting and command list  
+- `/ptic <message>` — General chat, questions, or creative story requests  
+- `/createpoll <question> (option1, option2) [anon] [multi]` — Create a poll  
 
-```
+## 📂 Project Structure
+
+```text
 PticAI/
-├── bot.py              # Main Telegram bot
-├── main.py             # CLI testing interface
-├── chat_memory.py      # Conversation context management
-├── config.py           # Configuration (bot token)
-├── benchmark.py        # Performance testing
-└── README.md           # This file
+├── bot.py              # Main Telegram bot logic
+├── main.py             # CLI sandbox for local testing
+├── chat_memory.py      # Persistence & context history management
+├── config.py           # Sensitive configuration (excluded from Git)
+├── benchmark.py        # Performance & hardware testing script
+└── chat_logs.json      # Local storage for conversation history
 ```
 
-## Performance
+## 📊 Performance (Tested on Mac)
 
-- Average response time: ~2-4 seconds (depending on query complexity)
-- Memory usage: ~2.6GB RAM (QAT quantization)
-- Supports 128K token context window
+Benchmark results for `gemma4:e2b-it-q4_K_M`:
 
-## Development
+- **Generation Speed:** ~20–22 tokens/sec (Near-instant response)  
+- **Time to First Token (TTFT):** ~0.45s (with model warm-up)  
+- **Memory Footprint:** ~1.8GB VRAM/RAM (4-bit K_M quantization)  
 
-This project was developed as part of the **AI Fluency: Framework & Foundations** course (Anthropic).
+## 🔧 Technical Notes
 
-### Running Benchmarks
-```bash
-python benchmark.py
-```
+- **Context Retention:** The bot uses a list-based message structure for history, which is more effective for Gemma 4 than raw text blocks  
+- **Thinking Tags:** Gemma 4 uses internal "thinking" tokens (`<|think|>`). This project includes a cleaning layer to ensure users see only the final output  
+- **Hardware Acceleration:** Fully compatible with Apple Silicon (Metal) and NVIDIA (CUDA) through Ollama's back-end  
 
-## AI Collaboration Acknowledgment
-
-In creating this Telegram bot upgrade project from Llama 1B to Ollama with Gemma 3 4B, I collaborated with Claude (Anthropic) to assist with:
-
-- **Project planning and delegation strategy**
-- **Model research and selection guidance**
-- **Code refactoring from local GGUF models to Ollama API**
-- **Removing translation layer and implementing native Ukrainian support**
-- **Performance benchmarking approach**
-- **Git version control setup and best practices**
-
-I affirm that all AI-generated and co-created content underwent thorough review and evaluation. I personally tested all code, made final decisions on architecture and model selection, and validated performance on my hardware. The final output accurately reflects my understanding, expertise, and intended meaning. While AI assistance was instrumental in the process, I maintain full responsibility for the content, its accuracy, and its presentation. This disclosure is made in the spirit of transparency and to acknowledge the role of AI in the creation process.
-
-## License
-
-This project is for educational purposes as part of the AI Fluency course.
-
-## Author
+## 👤 Author
 
 Created by [Mykola Klymchuk](https://github.com/mklymchuk)
 
 ---
 
-**Last Updated:** November 2025
+**Last Updated:** April 2026

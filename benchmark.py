@@ -1,137 +1,97 @@
 import ollama
 import time
 import statistics
+import psutil # Тепер він у нас в основній логіці
 
 # Configuration
-OLLAMA_MODEL = "gemma3:4b-it-qat"
+OLLAMA_MODEL = "gemma4:e2b-it-q4_K_M"
 
-# Test prompts in Ukrainian (various lengths and complexities)
+# Тестові запити з фокусом на ваші інтереси (фронтенд та логіка)
 TEST_PROMPTS = [
-    # Short questions
-    "Привіт! Як справи?",
-    "Яка сьогодні погода?",
-    "Що таке AI?",
-    
-    # Medium questions
-    "Розкажи коротко про історію України",
-    "Поясни різницю між Python і JavaScript",
-    "Як приготувати борщ?",
-    
-    # Long/complex requests
-    "Придумай коротку казку про дракона, який боявся висоти",
-    "Поясни принцип роботи нейронних мереж простими словами",
-    "Дай поради як навчитися програмувати з нуля"
+    "Привіт! Напиши короткий слоган для IT-інтерна.",
+    "Напиши функцію на JS для валідації email.",
+    "Поясни різницю між '==' та '===' у JavaScript.",
+    "Напиши CSS для адаптивної картки товару.",
+    "Створи JSON структуру для опису проекту на PortMaster."
 ]
 
-def measure_response_time(prompt: str) -> dict:
-    """Measure response time and token count for a single prompt."""
-    start_time = time.time()
+def measure_performance(prompt: str) -> dict:
+    """Вимірює розширені метрики продуктивності."""
+    start_time = time.perf_counter()
+    first_token_time = None
+    tokens_count = 0
     
     try:
-        response = ollama.chat(
+        # Використовуємо stream=True для вимірювання швидкості
+        stream = ollama.chat(
             model=OLLAMA_MODEL,
             messages=[
-                {"role": "system", "content": "Ти корисний асистент. Відповідай українською стисло."},
+                {"role": "system", "content": "Ти досвідчений фронтенд-розробник. Відповідай українською, чітко і по суті."},
                 {"role": "user", "content": prompt}
-            ]
+            ],
+            stream=True
         )
         
-        end_time = time.time()
-        response_time = end_time - start_time
+        full_response = ""
+        for chunk in stream:
+            if first_token_time is None:
+                first_token_time = time.perf_counter() - start_time
+            
+            content = chunk['message']['content']
+            full_response += content
+            # Приблизний підрахунок токенів (для точнішого результату Ollama видає 'eval_count' в кінці)
+            if content.strip():
+                tokens_count += 1 
+
+        end_time = time.perf_counter()
+        total_time = end_time - start_time
+        
+        # Отримуємо точні дані від Ollama (якщо доступні в останньому чанку)
+        # Примітка: в останньому чанку stream зазвичай є статистика
         
         return {
             "prompt": prompt,
-            "response": response['message']['content'],
-            "time": response_time,
+            "response_len": len(full_response),
+            "total_time": total_time,
+            "ttft": first_token_time, # Time to First Token
+            "tps": tokens_count / (total_time - (first_token_time or 0)) if total_time > 0 else 0,
             "success": True
         }
     
     except Exception as e:
-        end_time = time.time()
-        return {
-            "prompt": prompt,
-            "error": str(e),
-            "time": end_time - start_time,
-            "success": False
-        }
+        return {"prompt": prompt, "error": str(e), "success": False}
 
 def run_benchmark():
-    """Run performance benchmark on test prompts."""
-    print(f"🧪 Запуск бенчмарку для {OLLAMA_MODEL}\n")
-    print("=" * 70)
+    print(f"🚀 Тестуємо: {OLLAMA_MODEL}")
+    print("-" * 50)
     
     results = []
-    
-    for i, prompt in enumerate(TEST_PROMPTS, 1):
-        print(f"\n📝 Тест {i}/{len(TEST_PROMPTS)}")
-        print(f"Запит: {prompt}")
-        
-        result = measure_response_time(prompt)
-        results.append(result)
-        
-        if result['success']:
-            print(f"⏱️  Час відповіді: {result['time']:.2f}s")
-            print(f"📄 Відповідь: {result['response'][:100]}...")
+    for prompt in TEST_PROMPTS:
+        print(f"📡 Запит: {prompt[:40]}...")
+        res = measure_performance(prompt)
+        if res["success"]:
+            results.append(res)
+            print(f"   ⏱️  Перший токен: {res['ttft']:.2f}s | Швидкість: {res['tps']:.1f} tok/s")
         else:
-            print(f"❌ Помилка: {result['error']}")
-        
-        print("-" * 70)
-    
-    # Calculate statistics
-    successful_times = [r['time'] for r in results if r['success']]
-    
-    if successful_times:
-        print("\n" + "=" * 70)
-        print("📊 СТАТИСТИКА")
-        print("=" * 70)
-        print(f"✅ Успішних запитів: {len(successful_times)}/{len(TEST_PROMPTS)}")
-        print(f"⏱️  Середній час: {statistics.mean(successful_times):.2f}s")
-        print(f"🚀 Найшвидший: {min(successful_times):.2f}s")
-        print(f"🐌 Найповільніший: {max(successful_times):.2f}s")
-        print(f"📈 Медіана: {statistics.median(successful_times):.2f}s")
-        
-        if len(successful_times) > 1:
-            print(f"📉 Стандартне відхилення: {statistics.stdev(successful_times):.2f}s")
-        
-        print("=" * 70)
-    
-    return results
+            print(f"   ❌ Помилка: {res['error']}")
 
-def memory_check():
-    """Check if Ollama model fits in memory."""
-    print("\n🔍 Перевірка пам'яті...")
-    try:
-        import psutil
+    if results:
+        avg_tps = statistics.mean([r['tps'] for r in results])
+        avg_ttft = statistics.mean([r['ttft'] for r in results])
         
-        # Get current memory usage
-        memory = psutil.virtual_memory()
-        print(f"📊 Загальна RAM: {memory.total / (1024**3):.1f} GB")
-        print(f"💾 Використано: {memory.used / (1024**3):.1f} GB ({memory.percent}%)")
-        print(f"✅ Доступно: {memory.available / (1024**3):.1f} GB")
+        print("\n" + "="*30)
+        print(f"📊 ПІДСУМОК (Середні значення):")
+        print(f"🔹 Швидкість генерації: {avg_tps:.2f} токенів/сек")
+        print(f"🔹 Затримка відповіді (TTFT): {avg_ttft:.2f} сек")
         
-    except ImportError:
-        print("⚠️  Встановіть psutil для перевірки пам'яті: pip install psutil")
+        # Рекомендації на основі реальних цифр
+        if avg_tps > 15:
+            print("🟢 Стан: Ідеально. Модель літає.")
+        elif avg_tps > 5:
+            print("🟡 Стан: Комфортно. Читабельно в реальному часі.")
+        else:
+            print("🔴 Стан: Повільно. Можливо, замало VRAM.")
+        print("="*30)
 
 if __name__ == "__main__":
-    print("🚀 Бенчмарк продуктивності Ollama\n")
-    
-    # Check memory first
-    memory_check()
-    
-    # Run benchmark
-    results = run_benchmark()
-    
-    print("\n✅ Бенчмарк завершено!")
-    print("\n💡 Рекомендації:")
-    
-    avg_time = statistics.mean([r['time'] for r in results if r['success']])
-    
-    if avg_time < 2:
-        print("🎉 Відмінна швидкість! Модель працює швидко для групового чату.")
-    elif avg_time < 4:
-        print("✅ Прийнятна швидкість для більшості випадків.")
-    else:
-        print("⚠️  Повільно. Розгляньте можливість:")
-        print("   - Використання меншої моделі (gemma2:2b)")
-        print("   - Квантизація (якщо ще не використовується)")
-        print("   - Перевірка завантаження системи")
+    run_benchmark()

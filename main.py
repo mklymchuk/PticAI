@@ -1,40 +1,50 @@
 import ollama
+import re
 
-# Configuration
-OLLAMA_MODEL = "gemma3:4b-it-qat"
+# Використовуємо ту саму модель, що і в основному боті
+OLLAMA_MODEL = "gemma4:e2b-it-q4_K_M"
 
-# Function to query Ollama
 def ask_ollama(prompt: str) -> str:
-    """Send request to Ollama and get response."""
+    """Простий запит без історії для швидкої перевірки."""
     try:
         response = ollama.chat(
             model=OLLAMA_MODEL,
             messages=[
-                {"role": "system", "content": "Ти корисний асистент. Відповідай українською мовою стисло та зрозуміло."},
+                {"role": "system", "content": "Ти — Птик, працюєш у режимі терміналу. Відповідай чітко."},
                 {"role": "user", "content": prompt}
-            ]
+            ],
+            # Додаємо keep_alive, щоб не чекати завантаження моделі щоразу
+            keep_alive="10m" 
         )
-        return response['message']['content']
+        content = response['message']['content']
+        # Очищення від тегів думок, як і в bot.py
+        clean_content = re.sub(r'<\|think\|>.*?<\|channel\|>', '', content, flags=re.DOTALL).strip()
+        return clean_content
     except Exception as e:
-        return f"❌ Помилка: {e}"
+        return f"❌ Помилка Ollama: {e}"
 
 def main():
-    print(f"💬 CLI тестування Ollama ({OLLAMA_MODEL})")
-    print("Введіть питання українською (або 'exit' для виходу):\n")
+    print(f"🚀 Консольний режим Птика ({OLLAMA_MODEL})")
+    print("Це середовище для швидких тестів. Для виходу напишіть 'вихід'.\n")
     
     while True:
-        user_input = input("🧠 Ти: ")
-        
-        if user_input.lower() in {"exit", "quit", "вихід"}:
-            print("👋 Бувай!")
+        try:
+            user_input = input("👤 Ви: ")
+            
+            if user_input.lower() in {"exit", "quit", "вихід", "exit()"}:
+                print("👋 Вихід з консолі.")
+                break
+            
+            if not user_input.strip():
+                continue
+            
+            print("🤖 Птик: ", end="", flush=True)
+            answer = ask_ollama(user_input)
+            print(answer + "\n")
+            
+        except KeyboardInterrupt:
+            print("\n👋 Перервано користувачем.")
             break
-        
-        if not user_input.strip():
-            continue
-        
-        # Get response from Ollama (no translation needed!)
-        answer = ask_ollama(user_input)
-        print(f"🤖 Бот: {answer}\n")
 
 if __name__ == "__main__":
     main()

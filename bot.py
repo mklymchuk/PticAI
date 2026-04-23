@@ -1,143 +1,125 @@
+import ollama
+import re
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from config import TOKEN
 from chat_memory import ChatMemory
-import ollama
-import re
 
 # Initialize chat memory
-memory = ChatMemory(max_history=5)
+memory = ChatMemory(max_history=8) # Збільшив історію, бо Gemma 4 добре її тримає
+OLLAMA_MODEL = "gemma4:e2b-it-q4_K_M"
 
-# Ollama configuration
-OLLAMA_MODEL = "gemma3:4b-it-qat"
+# --- Допоміжні функції ---
 
-# Helper functions
-def is_story_request(message: str) -> bool:
-    """Determine if the message is requesting a story/creative content."""
-    message_lower = message.lower()
-    story_keywords = [
-        "казка", "казку", "уяви", "придумай", "історію", 
-        "вигадати", "story", "fiction", "казкову", "історія"
-    ]
-    count = sum(1 for word in story_keywords if word in message_lower)
-    return count > 0
-
-# Select system prompt based on message type
 def get_system_prompt(user_message: str) -> str:
-    """Select appropriate system prompt based on message type."""
-    if is_story_request(user_message):
+    """Визначає характер бота залежно від типу питання."""
+    message_lower = user_message.lower()
+    
+    # Творчий режим
+    if any(word in message_lower for word in ["казка", "історія", "придумай", "уяви"]):
         return (
-            "Ти креативний асистент, який пише короткі вигадані історії та казки. "
-            "Відповідай яскравою та образною мовою. "
-            "Обмежуй відповідь до 300 символів. Зроби історію компактною, але цікавою. "
-            "Уникай технічної мови або реальних фактів."
+            "Ти талановитий оповідач. Пиши цікаво, емоційно та лаконічно українською мовою. "
+            "Твої історії мають бути компактними, але захопливими."
         )
-    else:
-        return (
-            "Ти стислий та інформативний асистент. "
-            "Відповідай на запитання корисно, прямо та зрозуміло. "
-            "Обмеж відповідь одним коротким реченням, не довше 100 символів. "
-            "Уникай зайвих деталей або повторень."
-        )
+    
+    # Режим загального спілкування
+    return (
+        "Ти — Птіц, приязний та розумний асистент для спілкування. "
+        "Відповідай українською мовою, будь дотепним, але лаконічним. "
+        "Уникай довгих лекцій, спілкуйся як жива людина."
+    )
 
-# Async function to query Ollama model
-async def ask_ollama(prompt: str, system_prompt: str, context_history: str = "") -> str:
-    """
-    Send request to Ollama and get response.
-    
-    Args:
-        prompt: User's message
-        system_prompt: System instructions for the model
-        context_history: Previous conversation context
-    
-    Returns:
-        Model's response text
-    """
+async def ask_ollama(prompt: str, system_prompt: str, history: list) -> str:
+    """Запит до моделі з урахуванням історії та очищенням виводу."""
     try:
-        # Build messages for Ollama chat API
-        messages = [
-            {"role": "system", "content": system_prompt}
-        ]
+        messages = [{"role": "system", "content": system_prompt}]
         
-        # Add context history if available
-        if context_history:
-            messages.append({"role": "assistant", "content": f"Попередній контекст: {context_history}"})
-        
-        # Add current user message
+        # Додаємо історію повідомлень (якщо вона є)
+        for msg in history:
+            messages.append({"role": "user", "content": msg['user']})
+            messages.append({"role": "assistant", "content": msg['bot']})
+            
         messages.append({"role": "user", "content": prompt})
         
-        # Call Ollama
         response = ollama.chat(
             model=OLLAMA_MODEL,
-            messages=messages
+            messages=messages,
+            options={
+                "temperature": 0.8, # Трохи більше творчості для спілкування
+                "top_p": 0.9,
+            },
+            keep_alive="30m" # Тримаємо модель в пам'яті
         )
         
-        return response['message']['content']
-    
+        content = response['message']['content']
+        
+        # Видаляємо теги думок Gemma 4, щоб вони не потрапили в чат
+        clean_content = re.sub(r'<\|think\|>.*?<\|channel\|>', '', content, flags=re.DOTALL).strip()
+        # Також прибираємо можливі технічні артефакти
+        clean_content = re.sub(r'<[^>]+>', '', clean_content)
+        
+        return clean_content if clean_content else "Цікаве питання! Навіть не знаю, що відповісти."
+
     except Exception as e:
         print(f"Ollama error: {e}")
-        return "Вибачте, виникла помилка при обробці запиту."
+        return "Вибач, щось мозок підклинило. Спробуй ще раз!"
 
-# Command handlers
+# --- Обробники команд ---
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Вітальне повідомлення."""
+    welcome_text = (
+        "Привіт! Я Птіц — твій кишеньковий ШІ. 🐦\n\n"
+        "Що я вмію:\n"
+        "🔹 /ptic [питання] — поспілкуватися зі мною\n"
+        "🔹 /createpoll Питання (Опція1, Опція2) — створити опитування\n\n"
+        "Про що поговоримо сьогодні?"
+    )
+    await update.message.reply_text(welcome_text)
+
 async def process_ptic(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Main command handler for /ptic - processes user queries with AI."""
+    """Основна логіка чату."""
     user_message = ' '.join(context.args)
 
     if not user_message:
-        await update.message.reply_text("Введіть запит після команди /ptic.")
+        await update.message.reply_text("Напиши щось після /ptic, щоб я міг відповісти!")
         return
 
-    # Get user ID for memory management
     user_id = update.message.from_user.id
-    
-    # Get conversation history
-    context_history = memory.get_context(user_id)
-    
-    # Select appropriate system prompt
+    history = memory.get_messages(user_id) # Отримуємо список попередніх повідомлень
     system_prompt = get_system_prompt(user_message)
     
-    # Get response from Ollama (no translation needed!)
-    response = await ask_ollama(user_message, system_prompt, context_history)
+    # Показуємо статус друку
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
     
-    # Store in memory
+    response = await ask_ollama(user_message, system_prompt, history)
+    
+    # Зберігаємо в пам'ять
     memory.add_message(user_id, user_message, response)
     
-    # Send response
     await update.message.reply_text(response)
 
-# Welcome message handler
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Welcome message when user starts the bot."""
-    await update.message.reply_text("Привіт! Напиши /ptic і своє питання чи історію.")
-
-# Command handler for creating polls
 async def create_poll(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Create a Telegram poll from user input."""
+    """Створення опитувань (повернуто на місце)."""
     user_message = ' '.join(context.args)
 
     if not user_message:
         await update.message.reply_text(
-            "Будь ласка, введіть запит для створення опитування. Приклад:\n"
-            "/createpoll Якого кольору вода (чорна, зелена) anon multi"
+            "Приклад: /createpoll Який колір кращий? (Синій, Зелений) anon"
         )
         return
 
-    # Check for anonymous and multi-choice flags
     anonymous = 'anon' in user_message.lower()
     multi_choice = 'multi' in user_message.lower()
-
-    # Clean service words
     cleaned_message = re.sub(r'\b(anon|multi)\b', '', user_message, flags=re.IGNORECASE).strip()
 
-    # Extract question and options using regex
     match = re.search(r"(.*)\((.*)\)", cleaned_message)
     if match:
         question = match.group(1).strip()
-        options_str = match.group(2).strip()
-        options = [opt.strip() for opt in options_str.split(',') if opt.strip()]
+        options = [opt.strip() for opt in match.group(2).split(',') if opt.strip()]
 
         if len(options) < 2:
-            await update.message.reply_text("Опитування повинно мати хоча б два варіанти.")
+            await update.message.reply_text("Треба хоча б два варіанти у дужках!")
             return
 
         await update.message.reply_poll(
@@ -147,21 +129,18 @@ async def create_poll(update: Update, context: ContextTypes.DEFAULT_TYPE):
             allows_multiple_answers=multi_choice
         )
     else:
-        await update.message.reply_text(
-            "Не вдалося зрозуміти питання та варіанти для опитування. Спробуйте так:\n"
-            "/createpoll Якого кольору вода (чорна, зелена) anon multi"
-        )
+        await update.message.reply_text("Не зрозумів формат. Спробуй: Питання (Варіант1, Варіант2)")
+
+# --- Запуск бота ---
 
 def main():
-    """Initialize and run the bot."""
     app = ApplicationBuilder().token(TOKEN).build()
     
-    # Register command handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("ptic", process_ptic))
     app.add_handler(CommandHandler("createpoll", create_poll))
     
-    print(f"🤖 Бот запущено з моделлю {OLLAMA_MODEL}...")
+    print(f"🤖 Птіц запущений з моделлю {OLLAMA_MODEL}")
     app.run_polling()
 
 if __name__ == '__main__':
