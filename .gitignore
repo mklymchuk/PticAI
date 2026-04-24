@@ -42,3 +42,6 @@ chat_logs.json
 *.swp
 *.tmp
 config.py
+
+# .db files (if you use SQLite for any reason)
+*.db
